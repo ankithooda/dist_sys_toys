@@ -13,8 +13,7 @@ class EchoServer
             STDERR.puts "Recv #{line.inspect}"
 
             body = req[:body]
-            case body[:type]
-            when 
+            puts body
         end
     end
 end
