@@ -32,7 +32,7 @@ class EchoServer:
         sys.stdout.write(json.dumps(reply_msg) + "\n")
         sys.stdout.flush()
         
-        # Increment message counter first.
+        # Increment message counter.
         self.msg_counter = self.msg_counter + 1
 
     def handle_init(self, payload):
@@ -45,6 +45,16 @@ class EchoServer:
         }
         self.send_reply(payload, body)
 
+    def handle_echo(self, payload):
+        sys.stderr.write("Replying to Echo")
+
+        body = json.loads(json.dumps(payload['body']))
+
+        # set correct type for echo reply messages
+        body['type'] = "echo_ok"
+        body['in_reply_to'] = payload['body']['msg_id']
+        self.send_reply(payload, body)
+
     def run(self):
         for line in sys.stdin:
             try:
@@ -52,6 +62,8 @@ class EchoServer:
                 sys.stderr.write(f"Got {str(payload)}\n")
                 if payload['body']['type'] == "init":
                     self.handle_init(payload)
+                elif payload['body']['type'] == "echo":
+                    self.handle_echo(payload)
                 else:
                     sys.stderr.write("\nSome other message type received \n")
             except Exception as e:
