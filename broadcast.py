@@ -6,12 +6,14 @@ import sys
 
 
 class MessageType(Enum):
-    """ENum representing different types of Maelstrom message types.
+    """Enum representing different types of Maelstrom message types.
     """
     INIT = "init"
     INIT_OK = "init_ok"
     ECHO = "echo"
     ECHO_OK = "echo_ok"
+    TOPOLOGY = "topology"
+    TOPOLOGY_OK = "topology_ok"
 
 
 class Node:
@@ -60,7 +62,6 @@ class Node:
         }
 
         # Add the reply type
-        sys.stderr.write(json.dumps(msg) + "\n")
         sys.stdout.write(json.dumps(msg) + "\n")
         sys.stdout.flush()
         # Increment message counter.
@@ -90,13 +91,26 @@ class Node:
         Args:
             payload (dict): Request body of the ECHO message.
         """
-        sys.stderr.write("Replying to Echo")
-
         body = json.loads(json.dumps(payload['body']))
 
         # set correct type for echo reply messages
         body['type'] = MessageType.ECHO_OK.value
         body['in_reply_to'] = payload['body']['msg_id']
+        self.send(payload['src'], body)
+
+    def handle_topology(self, payload):
+        """Handles TOPOLOGY message.
+        See - https://github.com/jepsen-io/maelstrom/blob/main/doc/protocol.md
+
+        Args:
+            payload (dict): Request body of the TOPOLOGY message.
+        """
+        self.neighbours = payload['body']['topology'][self.node_id]
+        sys.stderr.write(f"{self.node_id} intialized it's neighbours to {self.neighbours}")
+        body = {
+            'type': MessageType.TOPOLOGY_OK.value,
+            'in_reply_to': payload['body']['msg_id']
+        }
         self.send(payload['src'], body)
 
     def run(self):
@@ -110,6 +124,8 @@ class Node:
                     self.handle_init(payload)
                 elif payload['body']['type'] == MessageType.ECHO.value:
                     self.handle_echo(payload)
+                elif payload['body']['type'] == MessageType.TOPOLOGY.value:
+                    self.handle_topology(payload)
                 else:
                     sys.stderr.write("\nSome other message type received \n")
             except Exception as loop_exception:
