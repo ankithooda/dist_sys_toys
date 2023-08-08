@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from copy import deepcopy
 from enum import Enum
 import json
 import sys
@@ -14,6 +15,10 @@ class MessageType(Enum):
     ECHO_OK = "echo_ok"
     TOPOLOGY = "topology"
     TOPOLOGY_OK = "topology_ok"
+    BROADCAST = "broadcast"
+    BROADCAST_OK = "broadcast_ok"
+    READ = "read"
+    READ_OK = "read_ok"
 
 
 class Node:
@@ -38,6 +43,7 @@ class Node:
         self.node_id = node_id
         self.neighbours = neighbours or []
         self.msg_counter = 0
+        self.messages = []
 
     def send(self, dest, msg_body):
         """Sends a message on the wire (STDOUT).
@@ -113,6 +119,35 @@ class Node:
         }
         self.send(payload['src'], body)
 
+    def handle_broadcast(self, payload):
+        """Handles BROADCAST message
+        See - https://github.com/jepsen-io/maelstrom/blob/main/doc/workloads.md#workload-broadcast
+
+        Args:
+            payload (dict): Request body of BROADCAST message.
+        """
+        self.messages.append(payload['body']['message'])
+        body = {
+            'type': MessageType.BROADCAST_OK.value,
+            'in_reply_to': payload['body']['msg_id']
+        }
+        self.send(payload['src'], body)
+
+    def handle_read(self, payload):
+        """Handles READ message
+        See - https://github.com/jepsen-io/maelstrom/blob/main/doc/workloads.md#workload-broadcast
+
+        Args:
+            payload (dict): Request body of READ message.
+        """
+        body = {
+            'type': MessageType.READ_OK.value,
+            'in_reply_to': payload['body']['msg_id'],
+            'messages': deepcopy(self.messages)
+        }
+        self.send(payload['src'], body)
+
+
     def run(self):
         """Run the event loop.
         """
@@ -126,6 +161,10 @@ class Node:
                     self.handle_echo(payload)
                 elif payload['body']['type'] == MessageType.TOPOLOGY.value:
                     self.handle_topology(payload)
+                elif payload['body']['type'] == MessageType.BROADCAST.value:
+                    self.handle_broadcast(payload)
+                elif payload['body']['type'] == MessageType.READ.value:
+                    self.handle_read(payload)
                 else:
                     sys.stderr.write("\nSome other message type received \n")
             except Exception as loop_exception:
