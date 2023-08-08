@@ -127,11 +127,22 @@ class Node:
             payload (dict): Request body of BROADCAST message.
         """
         self.messages.append(payload['body']['message'])
-        body = {
-            'type': MessageType.BROADCAST_OK.value,
-            'in_reply_to': payload['body']['msg_id']
-        }
-        self.send(payload['src'], body)
+
+        # Broadcast the message to neighbours
+        # but without msg_id attribute
+        for neighbour in self.neighbours:
+            self.send(neighbour, {
+                'type': MessageType.BROADCAST.value,
+                'message': payload['body']['message']
+            })
+
+        # Reply to broadcast message
+        if payload['body']['msg_id'] is not None:
+            body = {
+                'type': MessageType.BROADCAST_OK.value,
+                'in_reply_to': payload['body']['msg_id']
+            }
+            self.send(payload['src'], body)
 
     def handle_read(self, payload):
         """Handles READ message
