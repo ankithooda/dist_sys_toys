@@ -33,17 +33,17 @@ class Node:
     }
 
 
-    def __init__(self, node_id=None, neighbours=None):
+    def __init__(self):
         """
         Args:
             node_id (any, optional): Unique ID assigned to the node. Defaults to None.
             neighbours (list, optional): List of Node IDs of neighbours. Defaults to None.
         """
 
-        self.node_id = node_id
-        self.neighbours = neighbours or []
+        self.node_id = None
+        self.neighbours = set()
         self.msg_counter = 0
-        self.messages = []
+        self.messages = set()
 
     def send(self, dest, msg_body):
         """Sends a message on the wire (STDOUT).
@@ -67,7 +67,6 @@ class Node:
             'body': msg_body
         }
 
-        # Add the reply type
         sys.stdout.write(json.dumps(msg) + "\n")
         sys.stdout.flush()
         # Increment message counter.
@@ -111,7 +110,7 @@ class Node:
         Args:
             payload (dict): Request body of the TOPOLOGY message.
         """
-        self.neighbours = payload['body']['topology'][self.node_id]
+        self.neighbours = set(payload['body']['topology'][self.node_id])
         sys.stderr.write(f"{self.node_id} intialized it's neighbours to {self.neighbours}")
         body = {
             'type': MessageType.TOPOLOGY_OK.value,
@@ -126,15 +125,18 @@ class Node:
         Args:
             payload (dict): Request body of BROADCAST message.
         """
-        self.messages.append(payload['body']['message'])
 
+
+        # If message is new.
         # Broadcast the message to neighbours
         # but without msg_id attribute
-        for neighbour in self.neighbours:
-            self.send(neighbour, {
-                'type': MessageType.BROADCAST.value,
-                'message': payload['body']['message']
-            })
+        if payload['body']['message'] not in self.messages:
+            for neighbour in self.neighbours:
+                self.send(neighbour, {
+                    'type': MessageType.BROADCAST.value,
+                    'message': payload['body']['message']
+                })
+            self.messages.add(payload['body']['message'])
 
         # Reply to broadcast message
         if payload['body']['msg_id'] is not None:
@@ -154,7 +156,7 @@ class Node:
         body = {
             'type': MessageType.READ_OK.value,
             'in_reply_to': payload['body']['msg_id'],
-            'messages': deepcopy(self.messages)
+            'messages': list(self.messages)
         }
         self.send(payload['src'], body)
 
